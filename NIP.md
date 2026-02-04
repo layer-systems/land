@@ -99,8 +99,8 @@ A regular event announcing a land claim to followers.
 
 The position of a user's base is deterministically calculated from their public key (npub):
 
-1. Take the SHA-256 hash of the public key hex string
-2. Split the hash into two parts: first 16 bytes for X, last 16 bytes for Y
+1. Use the public key hex string directly (64 characters)
+2. Split the hex string into two parts: first 32 hex characters (16 bytes) for X, last 32 hex characters (16 bytes) for Y
 3. Convert each part to an integer and modulo by map dimensions to get coordinates
 
 This ensures:

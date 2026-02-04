@@ -67,6 +67,7 @@ export function ClaimBaseDialog({
         title: data.title || undefined,
         description: data.description || undefined,
         color: data.color,
+        existingBase,
       },
       {
         onSuccess: () => {

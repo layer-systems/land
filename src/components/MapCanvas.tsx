@@ -6,6 +6,9 @@ import type { LandBase } from '@/hooks/useUserBase';
 import type { MapUser } from '@/hooks/useAllUsers';
 import { MAP_WIDTH, MAP_HEIGHT } from '@/lib/npubToCoords';
 
+// Constants
+const HIT_DETECTION_RADIUS = 500;
+
 interface MapCanvasProps {
   bases: LandBase[];
   users: MapUser[];
@@ -101,7 +104,7 @@ export function MapCanvas({
           const dx = marker.x - worldPos.x;
           const dy = marker.y - worldPos.y;
           const distance = Math.sqrt(dx * dx + dy * dy);
-          return distance < 500 / zoom; // Hit detection radius
+          return distance < HIT_DETECTION_RADIUS / zoom;
         });
         setHoveredBase(hoveredMarker?.pubkey || null);
       }
@@ -126,7 +129,7 @@ export function MapCanvas({
           const dx = marker.x - worldPos.x;
           const dy = marker.y - worldPos.y;
           const distance = Math.sqrt(dx * dx + dy * dy);
-          return distance < 500 / zoom;
+          return distance < HIT_DETECTION_RADIUS / zoom;
         });
         if (clickedMarker) {
           onBaseClick(clickedMarker);

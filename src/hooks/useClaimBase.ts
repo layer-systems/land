@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNostrPublish } from './useNostrPublish';
 import { pubkeyToCoordinates } from '@/lib/npubToCoords';
+import type { LandBase } from './useUserBase';
 
 /**
  * Data for claiming a land base
@@ -10,6 +11,7 @@ export interface ClaimBaseData {
   description?: string;
   color?: string;
   pubkey: string;
+  existingBase?: LandBase | null;
 }
 
 /**
@@ -85,6 +87,11 @@ export function useUpdateBase() {
         ['y', coords.y.toString()],
         ['t', 'land'],
       ];
+
+      // Preserve original claimed_at timestamp if updating existing base
+      if (data.existingBase?.claimedAt) {
+        tags.push(['claimed_at', data.existingBase.claimedAt.toString()]);
+      }
 
       if (data.title) {
         tags.push(['title', data.title]);
