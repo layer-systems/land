@@ -321,8 +321,10 @@ export function MapCanvas({
         color = '#22c55e'; // Current user
       }
 
-      // Marker size
-      const radius = isHovered ? 12 : isCurrentUser ? 10 : hasClaimed ? 8 : 5;
+      // Marker size - scales with zoom
+      const baseRadius = isHovered ? 12 : isCurrentUser ? 10 : hasClaimed ? 8 : 5;
+      // Scale radius with zoom, with min/max bounds for usability
+      const radius = Math.max(3, Math.min(50, baseRadius * Math.sqrt(zoom) * 2));
       
       // Try to get profile picture
       const pictureUrl = marker.metadata?.picture;
