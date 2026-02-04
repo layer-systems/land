@@ -88,17 +88,6 @@ export function MapCanvas({
     hasAutoCenteredRef.current = true;
   }, [allMarkers, centerOnUser, currentUserPubkey]);
 
-  // Convert screen coordinates to world coordinates
-  const screenToWorld = useCallback(
-    (screenX: number, screenY: number) => {
-      return {
-        x: (screenX - offsetX) / zoom,
-        y: (screenY - offsetY) / zoom,
-      };
-    },
-    [offsetX, offsetY, zoom]
-  );
-
   const zoomTo = useCallback(
     (getNextZoom: (prevZoom: number) => number, anchor?: { x: number; y: number }) => {
       const { cssWidth, cssHeight } = canvasSizeRef.current;
