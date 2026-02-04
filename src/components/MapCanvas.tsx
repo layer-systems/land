@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { ZoomIn, ZoomOut, Home, Search } from 'lucide-react';
 import type { LandBase } from '@/hooks/useUserBase';
 import type { MapUser } from '@/hooks/useAllUsers';
-import { MAP_WIDTH, MAP_HEIGHT } from '@/lib/npubToCoords';
 
 // Constants
 const HIT_DETECTION_RADIUS = 500;

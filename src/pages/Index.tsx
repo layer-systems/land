@@ -80,7 +80,7 @@ const Index = () => {
     didAutoOpenMyBaseRef.current = true;
   }, [currentUserBase, user]);
 
-  const handleSearchResult = (pubkey: string, coords: Coordinates) => {
+  const handleSearchResult = (pubkey: string, _coords: Coordinates) => {
     // Find the base or user at these coordinates
     const base = bases.find((b) => b.pubkey === pubkey);
     const mapUser = usersForMap.find((u) => u.pubkey === pubkey);
