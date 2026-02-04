@@ -276,7 +276,7 @@ export function MapCanvas({
   }, []);
 
   return (
-    <div className={`relative ${className}`} ref={containerRef}>
+    <div className={`relative w-full h-full ${className}`} ref={containerRef}>
       <canvas
         ref={canvasRef}
         className="w-full h-full cursor-move"
@@ -328,19 +328,19 @@ export function MapCanvas({
       </div>
 
       {/* Legend */}
-      <Card className="absolute top-4 left-4 p-4">
-        <div className="space-y-2 text-sm">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded-full bg-green-500" />
-            <span>Your Base</span>
+      <Card className="absolute top-4 left-4 p-2">
+        <div className="space-y-1 text-xs">
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-full bg-green-500 flex-shrink-0" />
+            <span className="whitespace-nowrap">Your Base</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded-full bg-blue-500" />
-            <span>Claimed Base</span>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-full bg-blue-500 flex-shrink-0" />
+            <span className="whitespace-nowrap">Claimed Base</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded-full bg-gray-500" />
-            <span>Unclaimed</span>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-full bg-gray-500 flex-shrink-0" />
+            <span className="whitespace-nowrap">Unclaimed</span>
           </div>
         </div>
       </Card>
