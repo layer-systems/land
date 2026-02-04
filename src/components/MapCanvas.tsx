@@ -42,6 +42,10 @@ export function MapCanvas({
   const [hoveredBase, setHoveredBase] = useState<string | null>(null);
 
   const hasAutoCenteredRef = useRef(false);
+  
+  // Cache for loaded profile images
+  const loadedImagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
+  const loadingImagesRef = useRef<Set<string>>(new Set());
 
   // Create a map of pubkey -> base for quick lookup
   const baseMap = new Map(bases.map((base) => [base.pubkey, base]));
@@ -304,7 +308,7 @@ export function MapCanvas({
       const isHovered = marker.pubkey === hoveredBase;
       const hasClaimed = marker.hasClaimed;
 
-      // Determine color
+      // Determine color (fallback)
       let color = '#666666'; // Unclaimed
       if (hasClaimed) {
         if ('color' in marker && marker.color) {
@@ -317,18 +321,71 @@ export function MapCanvas({
         color = '#22c55e'; // Current user
       }
 
-      // Draw marker
+      // Marker size
       const radius = isHovered ? 12 : isCurrentUser ? 10 : hasClaimed ? 8 : 5;
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.arc(screenX, screenY, radius, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Draw border for hovered or current user
-      if (isHovered || isCurrentUser) {
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2;
+      
+      // Try to get profile picture
+      const pictureUrl = marker.metadata?.picture;
+      const loadedImage = pictureUrl ? loadedImagesRef.current.get(pictureUrl) : undefined;
+      
+      // Load image if not yet loaded
+      if (pictureUrl && !loadedImage && !loadingImagesRef.current.has(pictureUrl)) {
+        loadingImagesRef.current.add(pictureUrl);
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          loadedImagesRef.current.set(pictureUrl, img);
+          loadingImagesRef.current.delete(pictureUrl);
+          // Trigger re-render
+          setOffsetX((x) => x);
+        };
+        img.onerror = () => {
+          loadingImagesRef.current.delete(pictureUrl);
+        };
+        img.src = pictureUrl;
+      }
+      
+      // Draw profile picture or fallback bubble
+      if (loadedImage) {
+        // Draw circular profile picture
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(screenX, screenY, radius, 0, Math.PI * 2);
+        ctx.closePath();
+        ctx.clip();
+        ctx.drawImage(
+          loadedImage,
+          screenX - radius,
+          screenY - radius,
+          radius * 2,
+          radius * 2
+        );
+        ctx.restore();
+        
+        // Draw border
+        ctx.beginPath();
+        ctx.arc(screenX, screenY, radius, 0, Math.PI * 2);
+        if (isHovered || isCurrentUser) {
+          ctx.strokeStyle = isCurrentUser ? '#22c55e' : '#ffffff';
+          ctx.lineWidth = 3;
+        } else {
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 2;
+        }
         ctx.stroke();
+      } else {
+        // Fallback: draw colored bubble
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(screenX, screenY, radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Draw border for hovered or current user
+        if (isHovered || isCurrentUser) {
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
       }
 
       // Draw label for claimed bases (if zoomed in enough)
