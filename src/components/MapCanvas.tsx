@@ -5,8 +5,8 @@ import { ZoomIn, ZoomOut, Home, Search } from 'lucide-react';
 import type { LandBase } from '@/hooks/useUserBase';
 import type { MapUser } from '@/hooks/useAllUsers';
 
-// Constants
-const HIT_DETECTION_RADIUS = 500;
+// Hit detection radius in screen pixels (should be slightly larger than visual marker radius)
+const HIT_DETECTION_RADIUS_PX = 15;
 
 interface MapCanvasProps {
   bases: LandBase[];
@@ -27,6 +27,9 @@ export function MapCanvas({
 }: MapCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  
+  // Track actual canvas dimensions for coordinate calculations
+  const canvasSizeRef = useRef({ width: 0, height: 0, cssWidth: 0, cssHeight: 0 });
   
   // Camera state
   const [zoom, setZoom] = useState(0.5);
@@ -57,10 +60,10 @@ export function MapCanvas({
     if (currentUserPubkey) {
       const marker = allMarkers.find((m) => m.pubkey === currentUserPubkey);
       if (marker) {
-        const canvas = canvasRef.current;
-        if (canvas) {
-          setOffsetX(-marker.x * zoom + canvas.width / 2);
-          setOffsetY(-marker.y * zoom + canvas.height / 2);
+        const { cssWidth, cssHeight } = canvasSizeRef.current;
+        if (cssWidth > 0 && cssHeight > 0) {
+          setOffsetX(-marker.x * zoom + cssWidth / 2);
+          setOffsetY(-marker.y * zoom + cssHeight / 2);
         }
       }
     }
@@ -98,10 +101,8 @@ export function MapCanvas({
 
   const zoomTo = useCallback(
     (getNextZoom: (prevZoom: number) => number, anchor?: { x: number; y: number }) => {
-      const canvas = canvasRef.current;
-      const fallbackAnchor = canvas
-        ? { x: canvas.width / 2, y: canvas.height / 2 }
-        : { x: 0, y: 0 };
+      const { cssWidth, cssHeight } = canvasSizeRef.current;
+      const fallbackAnchor = { x: cssWidth / 2, y: cssHeight / 2 };
       const a = anchor ?? fallbackAnchor;
 
       setZoom((prevZoom) => {
@@ -133,29 +134,51 @@ export function MapCanvas({
     zoomTo((z) => Math.max(z / 1.5, 0.05));
   };
 
+  // Convert client mouse coordinates to CSS canvas coordinates
+  // This accounts for browser zoom - returns coordinates in CSS pixel space
+  const getCanvasCoords = useCallback(
+    (e: React.MouseEvent) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return { x: 0, y: 0 };
+      
+      const rect = canvas.getBoundingClientRect();
+      
+      // Return coordinates in CSS pixel space (not actual canvas pixels)
+      // This matches the coordinate system used for drawing (after ctx.setTransform)
+      return {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      };
+    },
+    []
+  );
+
   // Handle mouse interactions
   const handleMouseDown = (e: React.MouseEvent) => {
+    const coords = getCanvasCoords(e);
     setIsDragging(true);
-    setDragStart({ x: e.clientX - offsetX, y: e.clientY - offsetY });
+    setDragStart({ x: coords.x - offsetX, y: coords.y - offsetY });
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
+    const coords = getCanvasCoords(e);
+    
     if (isDragging) {
-      setOffsetX(e.clientX - dragStart.x);
-      setOffsetY(e.clientY - dragStart.y);
+      setOffsetX(coords.x - dragStart.x);
+      setOffsetY(coords.y - dragStart.y);
     } else {
-      // Check if hovering over a marker
-      const rect = canvasRef.current?.getBoundingClientRect();
-      if (rect) {
-        const worldPos = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
-        const hoveredMarker = allMarkers.find((marker) => {
-          const dx = marker.x - worldPos.x;
-          const dy = marker.y - worldPos.y;
-          const distance = Math.sqrt(dx * dx + dy * dy);
-          return distance < HIT_DETECTION_RADIUS / zoom;
-        });
-        setHoveredBase(hoveredMarker?.pubkey || null);
-      }
+      // Check if hovering over a marker - use screen coordinates for hit detection
+      const hoveredMarker = allMarkers.find((marker) => {
+        // Convert marker world position to screen position
+        const markerScreenX = marker.x * zoom + offsetX;
+        const markerScreenY = marker.y * zoom + offsetY;
+        // Calculate distance in screen pixels
+        const dx = markerScreenX - coords.x;
+        const dy = markerScreenY - coords.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        return distance < HIT_DETECTION_RADIUS_PX;
+      });
+      setHoveredBase(hoveredMarker?.pubkey || null);
     }
   };
 
@@ -170,18 +193,20 @@ export function MapCanvas({
 
   const handleClick = (e: React.MouseEvent) => {
     if (onBaseClick) {
-      const rect = canvasRef.current?.getBoundingClientRect();
-      if (rect) {
-        const worldPos = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
-        const clickedMarker = allMarkers.find((marker) => {
-          const dx = marker.x - worldPos.x;
-          const dy = marker.y - worldPos.y;
-          const distance = Math.sqrt(dx * dx + dy * dy);
-          return distance < HIT_DETECTION_RADIUS / zoom;
-        });
-        if (clickedMarker) {
-          onBaseClick(clickedMarker);
-        }
+      const coords = getCanvasCoords(e);
+      // Check if clicking on a marker - use screen coordinates for hit detection
+      const clickedMarker = allMarkers.find((marker) => {
+        // Convert marker world position to screen position
+        const markerScreenX = marker.x * zoom + offsetX;
+        const markerScreenY = marker.y * zoom + offsetY;
+        // Calculate distance in screen pixels
+        const dx = markerScreenX - coords.x;
+        const dy = markerScreenY - coords.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        return distance < HIT_DETECTION_RADIUS_PX;
+      });
+      if (clickedMarker) {
+        onBaseClick(clickedMarker);
       }
     }
   };
@@ -189,10 +214,8 @@ export function MapCanvas({
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
 
-    const rect = canvasRef.current?.getBoundingClientRect();
-    if (!rect) return;
-
-    const anchor = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    const coords = getCanvasCoords(e);
+    const anchor = { x: coords.x, y: coords.y };
     const direction = e.deltaY < 0 ? 1 : -1;
     const factor = direction > 0 ? 1.15 : 1 / 1.15;
 
@@ -207,16 +230,46 @@ export function MapCanvas({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Set canvas size to match container
+    // Set canvas size to match container with device pixel ratio for sharpness
     const container = containerRef.current;
     if (container) {
-      canvas.width = container.clientWidth;
-      canvas.height = container.clientHeight;
+      const rect = container.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      
+      // Store both the actual pixel dimensions and CSS dimensions
+      const cssWidth = rect.width;
+      const cssHeight = rect.height;
+      const pixelWidth = Math.floor(cssWidth * dpr);
+      const pixelHeight = Math.floor(cssHeight * dpr);
+      
+      // Only resize if dimensions changed
+      if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+        canvas.width = pixelWidth;
+        canvas.height = pixelHeight;
+        // Set CSS size explicitly to match the container
+        canvas.style.width = `${cssWidth}px`;
+        canvas.style.height = `${cssHeight}px`;
+      }
+      
+      // Update the size ref for coordinate calculations
+      canvasSizeRef.current = { 
+        width: pixelWidth, 
+        height: pixelHeight,
+        cssWidth,
+        cssHeight
+      };
+      
+      // Scale context for high DPI displays
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
+
+    // Use CSS dimensions for drawing calculations
+    const drawWidth = canvasSizeRef.current.cssWidth || canvas.width;
+    const drawHeight = canvasSizeRef.current.cssHeight || canvas.height;
 
     // Clear canvas
     ctx.fillStyle = '#0a0a0a';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, drawWidth, drawHeight);
 
     // Draw grid
     ctx.strokeStyle = '#1a1a1a';
@@ -224,14 +277,14 @@ export function MapCanvas({
     const gridSize = 10000;
     const startX = Math.floor(-offsetX / zoom / gridSize) * gridSize;
     const startY = Math.floor(-offsetY / zoom / gridSize) * gridSize;
-    const endX = startX + canvas.width / zoom + gridSize;
-    const endY = startY + canvas.height / zoom + gridSize;
+    const endX = startX + drawWidth / zoom + gridSize;
+    const endY = startY + drawHeight / zoom + gridSize;
 
     for (let x = startX; x < endX; x += gridSize) {
       const screenX = x * zoom + offsetX;
       ctx.beginPath();
       ctx.moveTo(screenX, 0);
-      ctx.lineTo(screenX, canvas.height);
+      ctx.lineTo(screenX, drawHeight);
       ctx.stroke();
     }
 
@@ -239,7 +292,7 @@ export function MapCanvas({
       const screenY = y * zoom + offsetY;
       ctx.beginPath();
       ctx.moveTo(0, screenY);
-      ctx.lineTo(canvas.width, screenY);
+      ctx.lineTo(drawWidth, screenY);
       ctx.stroke();
     }
 
@@ -251,9 +304,9 @@ export function MapCanvas({
       // Skip if off-screen
       if (
         screenX < -50 ||
-        screenX > canvas.width + 50 ||
+        screenX > drawWidth + 50 ||
         screenY < -50 ||
-        screenY > canvas.height + 50
+        screenY > drawHeight + 50
       ) {
         return;
       }
@@ -321,14 +374,20 @@ export function MapCanvas({
     offsetY,
   ]);
 
-  // Handle window resize
+  // Handle window resize - trigger re-render to update canvas dimensions
   useEffect(() => {
     const handleResize = () => {
-      const canvas = canvasRef.current;
       const container = containerRef.current;
-      if (canvas && container) {
-        canvas.width = container.clientWidth;
-        canvas.height = container.clientHeight;
+      if (container) {
+        const rect = container.getBoundingClientRect();
+        // Update size ref - the render effect will handle actual canvas resizing
+        canvasSizeRef.current = {
+          ...canvasSizeRef.current,
+          cssWidth: rect.width,
+          cssHeight: rect.height,
+        };
+        // Force re-render by updating a state
+        setOffsetX((x) => x);
       }
     };
 
@@ -340,7 +399,7 @@ export function MapCanvas({
     <div className={`relative w-full h-full ${className}`} ref={containerRef}>
       <canvas
         ref={canvasRef}
-        className="w-full h-full cursor-move"
+        className="cursor-move absolute top-0 left-0"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
