@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useSeoMeta } from '@unhead/react';
 import { MapCanvas } from '@/components/MapCanvas';
 import { ClaimBaseDialog } from '@/components/ClaimBaseDialog';
@@ -34,6 +34,7 @@ const Index = () => {
   const [selectedBase, setSelectedBase] = useState<LandBase | MapUser | null>(null);
   const [infoSheetOpen, setInfoSheetOpen] = useState(false);
   const [userCoords, setUserCoords] = useState<Coordinates | null>(null);
+  const didAutoOpenMyBaseRef = useRef(false);
 
   // Calculate user's coordinates
   useEffect(() => {
@@ -45,15 +46,44 @@ const Index = () => {
     }
   }, [user]);
 
+  const usersForMap = useMemo(() => {
+    if (!user || !userCoords) return users;
+    if (users.some((u) => u.pubkey === user.pubkey)) return users;
+
+    const current: MapUser = {
+      pubkey: user.pubkey,
+      x: userCoords.x,
+      y: userCoords.y,
+      hasClaimed: false,
+    };
+
+    return [current, ...users];
+  }, [user, userCoords, users]);
+
   const handleBaseClick = (base: LandBase | MapUser) => {
     setSelectedBase(base);
     setInfoSheetOpen(true);
   };
 
+  // Auto-open my base details once when the app loads and I already claimed a base
+  useEffect(() => {
+    if (!user) {
+      didAutoOpenMyBaseRef.current = false;
+      return;
+    }
+
+    if (didAutoOpenMyBaseRef.current) return;
+    if (!currentUserBase) return;
+
+    setSelectedBase(currentUserBase);
+    setInfoSheetOpen(true);
+    didAutoOpenMyBaseRef.current = true;
+  }, [currentUserBase, user]);
+
   const handleSearchResult = (pubkey: string, coords: Coordinates) => {
     // Find the base or user at these coordinates
     const base = bases.find((b) => b.pubkey === pubkey);
-    const mapUser = users.find((u) => u.pubkey === pubkey);
+    const mapUser = usersForMap.find((u) => u.pubkey === pubkey);
     
     if (base) {
       setSelectedBase(base);
@@ -154,6 +184,18 @@ const Index = () => {
                     {currentUserBase ? '✅ Claimed' : '⚠️ Unclaimed'}
                   </p>
                 </div>
+
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full"
+                  onClick={() => {
+                    const me = currentUserBase ?? usersForMap.find((u) => u.pubkey === user.pubkey) ?? null;
+                    if (me) handleBaseClick(me);
+                  }}
+                >
+                  View My Base
+                </Button>
               </CardContent>
             </Card>
           )}
@@ -190,7 +232,7 @@ const Index = () => {
           ) : (
             <MapCanvas
               bases={bases}
-              users={users}
+              users={usersForMap}
               currentUserPubkey={user?.pubkey}
               onBaseClick={handleBaseClick}
               onSearchClick={() => setSearchDialogOpen(true)}

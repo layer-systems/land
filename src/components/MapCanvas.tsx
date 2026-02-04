@@ -39,6 +39,8 @@ export function MapCanvas({
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [hoveredBase, setHoveredBase] = useState<string | null>(null);
 
+  const hasAutoCenteredRef = useRef(false);
+
   // Create a map of pubkey -> base for quick lookup
   const baseMap = new Map(bases.map((base) => [base.pubkey, base]));
 
@@ -65,6 +67,25 @@ export function MapCanvas({
     }
   }, [currentUserPubkey, allMarkers, zoom]);
 
+  // Auto-center once on initial load when logged in
+  useEffect(() => {
+    if (!currentUserPubkey) {
+      hasAutoCenteredRef.current = false;
+      return;
+    }
+
+    if (hasAutoCenteredRef.current) return;
+
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+    if (!canvas || !container) return;
+    if (container.clientWidth === 0 || container.clientHeight === 0) return;
+    if (!allMarkers.some((m) => m.pubkey === currentUserPubkey)) return;
+
+    centerOnUser();
+    hasAutoCenteredRef.current = true;
+  }, [allMarkers, centerOnUser, currentUserPubkey]);
+
   // Convert screen coordinates to world coordinates
   const screenToWorld = useCallback(
     (screenX: number, screenY: number) => {
@@ -76,13 +97,41 @@ export function MapCanvas({
     [offsetX, offsetY, zoom]
   );
 
+  const zoomTo = useCallback(
+    (getNextZoom: (prevZoom: number) => number, anchor?: { x: number; y: number }) => {
+      const canvas = canvasRef.current;
+      const fallbackAnchor = canvas
+        ? { x: canvas.width / 2, y: canvas.height / 2 }
+        : { x: 0, y: 0 };
+      const a = anchor ?? fallbackAnchor;
+
+      setZoom((prevZoom) => {
+        const nextZoom = getNextZoom(prevZoom);
+        if (nextZoom === prevZoom) return prevZoom;
+
+        // Keep the world position under the anchor fixed while zooming.
+        setOffsetX((prevOffsetX) => {
+          const worldX = (a.x - prevOffsetX) / prevZoom;
+          return a.x - worldX * nextZoom;
+        });
+        setOffsetY((prevOffsetY) => {
+          const worldY = (a.y - prevOffsetY) / prevZoom;
+          return a.y - worldY * nextZoom;
+        });
+
+        return nextZoom;
+      });
+    },
+    []
+  );
+
   // Handle zoom
   const handleZoomIn = () => {
-    setZoom((z) => Math.min(z * 1.5, 5));
+    zoomTo((z) => Math.min(z * 1.5, 5));
   };
 
   const handleZoomOut = () => {
-    setZoom((z) => Math.max(z / 1.5, 0.05));
+    zoomTo((z) => Math.max(z / 1.5, 0.05));
   };
 
   // Handle mouse interactions
@@ -136,6 +185,19 @@ export function MapCanvas({
         }
       }
     }
+  };
+
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    const anchor = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    const direction = e.deltaY < 0 ? 1 : -1;
+    const factor = direction > 0 ? 1.15 : 1 / 1.15;
+
+    zoomTo((z) => Math.min(5, Math.max(0.05, z * factor)), anchor);
   };
 
   // Render the map
@@ -285,6 +347,7 @@ export function MapCanvas({
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseLeave}
         onClick={handleClick}
+        onWheel={handleWheel}
       />
 
       {/* Controls */}
