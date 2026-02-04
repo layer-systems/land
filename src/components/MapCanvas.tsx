@@ -32,7 +32,7 @@ export function MapCanvas({
   const canvasSizeRef = useRef({ width: 0, height: 0, cssWidth: 0, cssHeight: 0 });
   
   // Camera state
-  const [zoom, setZoom] = useState(0.5);
+  const [zoom, setZoom] = useState(0.15);
   const [offsetX, setOffsetX] = useState(0);
   const [offsetY, setOffsetY] = useState(0);
   
@@ -438,7 +438,7 @@ export function MapCanvas({
       </div>
 
       {/* Legend */}
-      <Card className="absolute top-4 left-4 p-2">
+      <Card className="absolute top-4 right-4 p-2">
         <div className="space-y-1 text-xs">
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded-full bg-green-500 flex-shrink-0" />

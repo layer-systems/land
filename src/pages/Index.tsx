@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSeoMeta } from '@unhead/react';
 import { MapCanvas } from '@/components/MapCanvas';
 import { ClaimBaseDialog } from '@/components/ClaimBaseDialog';
@@ -34,7 +34,6 @@ const Index = () => {
   const [selectedBase, setSelectedBase] = useState<LandBase | MapUser | null>(null);
   const [infoSheetOpen, setInfoSheetOpen] = useState(false);
   const [userCoords, setUserCoords] = useState<Coordinates | null>(null);
-  const didAutoOpenMyBaseRef = useRef(false);
 
   // Calculate user's coordinates
   useEffect(() => {
@@ -65,20 +64,7 @@ const Index = () => {
     setInfoSheetOpen(true);
   };
 
-  // Auto-open my base details once when the app loads and I already claimed a base
-  useEffect(() => {
-    if (!user) {
-      didAutoOpenMyBaseRef.current = false;
-      return;
-    }
 
-    if (didAutoOpenMyBaseRef.current) return;
-    if (!currentUserBase) return;
-
-    setSelectedBase(currentUserBase);
-    setInfoSheetOpen(true);
-    didAutoOpenMyBaseRef.current = true;
-  }, [currentUserBase, user]);
 
   const handleSearchResult = (pubkey: string, _coords: Coordinates) => {
     // Find the base or user at these coordinates
